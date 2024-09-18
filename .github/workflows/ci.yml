@@ -1,6 +1,6 @@
 name: CI/CD with Docker
 on: [push, pull_request, workflow_dispatch]
-    branches:
+branches:
       - main
 jobs:
   build:
