@@ -39,16 +39,12 @@ jobs:
         run: |
           echo "現在のディレクトリ: $(pwd)"
           ls -la
-      - name: Dockerコンテナ起動・テスト
+      
+      # Dockerコンテナを起動（Flaskアプリ用の設定が必要な場合は追加）
+      - name: Nginxコンテナ起動
         run: |
           docker run -d --name my-nginx-container -p 80:80 mura0914/centos-nginx:latest
-          # 必要に応じてテストスクリプトをここに追加
-          # 例えば、curlでサーバーの応答を確認
-          curl http://localhost:80
-          # テストが終わったらコンテナを停止・削除
-          # docker stop my-nginx-container
-          # docker rm my-nginx-container
-      
+
       # Pythonをセットアップ
       - name: Pythonをセットアップ
         uses: actions/setup-python@v4
@@ -68,13 +64,15 @@ jobs:
           source venv/bin/activate
           nohup flask run --host=0.0.0.0 --port=5000 &
 
-      # Flaskアプリケーションのレスポンスを確認
+      # Flaskアプリケーションのレスポンスを確認（Nginx経由で確認する）
       - name: Flaskアプリケーションのレスポンスを確認
         run: |
           sleep 5  # サーバーが起動するのを待つ
-          curl http://localhost:5000  # ここでFlaskアプリが正しく動作するか確認する
+          curl http://localhost:80  # Nginxを介してFlaskアプリのレスポンスを確認
 
-      # アクション終了時にアプリケーションを停止
-      - name: Flaskアプリケーションを停止
+      # コンテナとアプリケーションを停止・削除
+      - name: コンテナとアプリケーションの停止・削除
         run: |
-          pkill flask
+          docker stop my-nginx-container
+          docker rm my-nginx-container
+          pkill flask  # Flaskアプリケーションの停止
