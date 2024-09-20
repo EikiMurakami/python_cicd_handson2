@@ -48,7 +48,7 @@ jobs:
           port: ${{ secrets.PORT }}
           script: |
             ps aux | grep sshd
-            docker pull ${{ secrets.DOCKER_USERNAME }}/centos-nginx:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/mura0914/centos-nginx:latest
             docker stop my-nginx-container || true
             docker rm my-nginx-container || true
-            docker run -d --name my-nginx-container -p 80:80 ${{ secrets.DOCKER_USERNAME }}/centos-nginx:latest
+            docker run -d --name my-nginx-container -p 80:80 ${{ secrets.DOCKER_USERNAME }}/mura0914/centos-nginx:latest
