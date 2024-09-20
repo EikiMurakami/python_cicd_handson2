@@ -47,6 +47,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.PORT }}
           script: |
+            ps aux | grep sshd
             docker pull ${{ secrets.DOCKER_USERNAME }}/centos-nginx:latest
             docker stop my-nginx-container || true
             docker rm my-nginx-container || true
