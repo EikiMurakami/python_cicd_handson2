@@ -46,5 +46,35 @@ jobs:
           # 例えば、curlでサーバーの応答を確認
           curl http://localhost:80
           # テストが終わったらコンテナを停止・削除
-          docker stop my-nginx-container
-          docker rm my-nginx-container
+          # docker stop my-nginx-container
+          # docker rm my-nginx-container
+      
+      # Pythonをセットアップ
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'  # 必要なバージョンを指定
+
+      # 仮想環境を作成し、依存関係をインストール
+      - name: 仮想環境を作成し、依存関係をインストール
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt  # Flaskなどの必要なパッケージをrequirements.txtに記載しておく
+
+      # Flaskアプリケーションをバックグラウンドで起動
+      - name: Flaskアプリケーションをバックグラウンドで起動
+        run: |
+          source venv/bin/activate
+          nohup flask run --host=0.0.0.0 --port=5000 &
+
+      # Flaskアプリケーションのレスポンスを確認
+      - name: Flaskアプリケーションのレスポンスを確認
+        run: |
+          sleep 5  # サーバーが起動するのを待つ
+          curl http://localhost:5000  # ここでFlaskアプリが正しく動作するか確認する
+
+      # アクション終了時にアプリケーションを停止
+      - name: Flaskアプリケーションを停止
+        run: |
+          pkill flask
