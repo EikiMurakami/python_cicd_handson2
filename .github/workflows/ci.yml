@@ -58,17 +58,25 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt  # Flaskなどの必要なパッケージをrequirements.txtに記載しておく
 
-      # Flaskアプリケーションをバックグラウンドで起動
+      # Flaskアプリケーションをバックグラウンドで起動し、ログを確認
       - name: Flaskアプリケーションをバックグラウンドで起動
         run: |
           source venv/bin/activate
-          nohup flask run --host=0.0.0.0 --port=5000 &
+          nohup flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1 &
+          sleep 5  # サーバーの起動を待つ
+          echo "Flaskアプリケーションの起動ログ:"
+          cat flask.log  # Flaskの起動ログを表示
 
       # Flaskアプリケーションのレスポンスを確認（Nginx経由で確認する）
       - name: Flaskアプリケーションのレスポンスを確認
         run: |
-          sleep 5  # サーバーが起動するのを待つ
-          curl http://localhost:80  # Nginxを介してFlaskアプリのレスポンスを確認
+          curl -I http://localhost:80  # Nginxを介してFlaskアプリのレスポンスを確認
+
+      # pytestを実行してFlaskアプリをテスト
+      - name: pytestを実行してFlaskアプリをテスト
+        run: |
+          source venv/bin/activate
+          pytest tests/test_app.py  # テストファイルを実行（testsディレクトリ内にtest_app.pyを用意）
 
       # コンテナとアプリケーションを停止・削除
       - name: コンテナとアプリケーションの停止・削除
