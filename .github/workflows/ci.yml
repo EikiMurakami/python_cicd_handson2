@@ -1,40 +1,86 @@
 name: CI/CD with Docker
 on:
-  [push, pull_request, workflow_dispatch]
-    branches:
-      - main
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Log in to DockerHub
+      - name: コードをチェックアウト
+        uses: actions/checkout@v4
+      - name: Docker Buildxをセットアップ
+        uses: docker/setup-buildx-action@v3
+      - name: Dockerメタデータを生成
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            mura0914/centos-nginx
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - name: DockerHubにログイン
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build Docker image
-        run: |
-          docker build -t "${{ secrets.DOCKER_USERNAME }}/centos-nginx:1.0" .
-      - name: Push Docker image to DockerHub
-        run: |
-          docker push "${{ secrets.DOCKER_USERNAME }}/centos-nginx:1.0"
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: SSH into the server and deploy the Docker container
-        uses: appleboy/ssh-action@v0.1.3
+      - name: Dockerイメージをビルド、プッシュ
+        uses: docker/build-push-action@v6
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          script: |
-            docker pull ${{ secrets.DOCKER_USERNAME }}/centos-nginx:1.0
-            docker stop my-nginx-container || true
-            docker rm my-nginx-container || true
-            docker run -d --name my-nginx-container -p 80:80 ${{ secrets.DOCKER_USERNAME }}/centos-nginx:1.0
+          context: docker/
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: リポジトリの内容を表示
+        run: |
+          echo "現在のディレクトリ: $(pwd)"
+          ls -la
+      
+      # Dockerコンテナを起動（Flaskアプリ用の設定が必要な場合は追加）
+      - name: Nginxコンテナ起動
+        run: |
+          docker run -d --name my-nginx-container -p 80:80 mura0914/centos-nginx:latest
+
+      # Pythonをセットアップ
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'  # 必要なバージョンを指定
+
+      # 仮想環境を作成し、依存関係をインストール
+      - name: 仮想環境を作成し、依存関係をインストール
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt  # Flaskなどの必要なパッケージをrequirements.txtに記載しておく
+
+      # Flaskアプリケーションをバックグラウンドで起動し、ログを確認
+      - name: Flaskアプリケーションをバックグラウンドで起動
+        run: |
+          source venv/bin/activate
+          nohup flask run --host=0.0.0.0 --port=5000 > flask.log 2>&1 &
+          sleep 5  # サーバーの起動を待つ
+          echo "Flaskアプリケーションの起動ログ:"
+          cat flask.log  # Flaskの起動ログを表示
+
+      # Flaskアプリケーションのレスポンスを確認（Nginx経由で確認する）
+      - name: Flaskアプリケーションのレスポンスを確認
+        run: |
+          curl -I http://localhost:80  # Nginxを介してFlaskアプリのレスポンスを確認
+
+      # pytestを実行してFlaskアプリをテスト
+      - name: pytestを実行してFlaskアプリをテスト
+        run: |
+          source venv/bin/activate
+          pytest tests/test_app.py  # テストファイルを実行（testsディレクトリ内にtest_app.pyを用意）
+
+      # コンテナとアプリケーションを停止・削除
+      - name: コンテナとアプリケーションの停止・削除
+        run: |
+          docker stop my-nginx-container
+          docker rm my-nginx-container
+          pkill flask  # Flaskアプリケーションの停止
